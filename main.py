@@ -2,7 +2,8 @@ from src.data import *
 
 
 if __name__ == '__main__':
-    d = Data()
-    f = d.convert()
+
+    eth = Crypto('ETH')
+    dot = Crypto('DOT')
 
 
