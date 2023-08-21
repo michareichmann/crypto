@@ -1,8 +1,9 @@
-from plotting.save import SaveDraw, BaseDir, info, choose, prep_kw
+import numpy as np
 import pandas as pd
 import pyarrow.feather as feather
-import numpy as np
+import plotting.binning as bins
 
+from plotting.save import SaveDraw, BaseDir, info, choose, prep_kw
 
 draw = SaveDraw()
 
@@ -12,11 +13,15 @@ class Data:
     Dir = BaseDir.joinpath('data')
     FilePath = Dir.joinpath('data.feather')
     TimeKey = 'Started Date'
-    RKey = 'Rewards paid'
 
     def __init__(self):
         self.D: pd.DataFrame = self.load()
 
+    def __getitem__(self, item):
+        return self.D[self.D['Currency'] == item]
+
+    # --------------------------------------------
+    # region INIT
     def load(self) -> pd.DataFrame:
         """load the data from the h5 file"""
         self.convert()  # only converts if there are new files
@@ -41,9 +46,8 @@ class Data:
             df_old = feather.read_feather(Data.FilePath)
             df = pd.concat([df_old, df]).drop_duplicates().reset_index(drop=True)
         feather.write_feather(df, Data.FilePath)
-
-    def __getitem__(self, item):
-        return self.D[self.D['Currency'] == item]
+    # endregion
+    # --------------------------------------------
 
     def get(self, key, d=None, dtype=None):
         x = choose(d, self.D)[key]
@@ -52,16 +56,23 @@ class Data:
     def time(self, d=None):
         return self.get(Data.TimeKey, d, int) / 1e9
 
-    def week_splits(self, d=None):
-        w = choose(d, self.D)[Data.TimeKey].dt.isocalendar().week
-        return np.unique(w), np.where(np.diff(w))[0] + 1
-
     def amount(self, d=None):
         return self.get('Amount', d)
 
+    def week_bins(self, d=None):
+        dt0, dt1 = choose(d, self.D)[Data.TimeKey].iloc[[0, -1]]  # get first and last time
+        ts0 = dt0.replace(hour=0, minute=0, second=0).timestamp() - dt0.dayofweek * 24 * 3600  # go to first day of the week
+        return bins.make(ts0, w=7 * 24 * 3600, nb=(dt1 - dt0).days // 7 + 1)
+
+    def month_split(self, d=None):
+        # TODO: finish
+        m = choose(d, self.D)[Data.TimeKey].dt.month.to_numpy()
+        return np.where(np.diff(m))[0] + 1
+
     @staticmethod
-    def x_args(week=False):
-        return {'x_tit': 'Calendar Week' if week else 'Time [dd:mm]', 't_ax_off': None if week else 0, 'tform': '%d/%m'}
+    def x_args(week=False, month=False):
+        return {'x_tit': 'Calendar Week' if week else 'Time [dd:mm]', 't_ax_off': 0, 'tform': '%W' if week else '%b %y' if month else '%d/%m',
+                'grid': True, 'bar_w': .7, 'bar_off': .07, 'draw_opt': 'bar1', 'fill_color': 30}
 
 
 class Crypto(Data):
@@ -70,19 +81,25 @@ class Crypto(Data):
         self.Name = name
         super().__init__()
 
+    def __getitem__(self, item):
+        return self.D[self.D['Description'] == item]
+
     def load(self) -> pd.DataFrame:
         d = super().load()
         return d[d['Currency'] == self.Name]
 
-    def __getitem__(self, item):
-        return self.D[self.D['Description'] == item]
+    # region Types
+    @property
+    def rewards(self) -> pd.DataFrame:
+        return self['Rewards paid']
 
-    def plot_rewards(self, week=True, **dkw):
-        d = self[Data.RKey]
+    @property
+    def transfers(self) -> pd.DataFrame:
+        return self[f'Staking for currency {self.Name}']
+    # endregion
+
+    def plot_rewards(self, week=False, month=False, **dkw):
+        d = self.rewards
         x, y = self.time(d), self.amount(d)
-        if week:
-            x, s = self.week_splits(d)
-            y = [np.sum(i) for i in np.split(y, s)]
-        return draw.graph(x, y, **prep_kw(dkw, **self.x_args(week), markersize=.7, y_range=[0, 1.1 * np.max(y)], y_tit=f'Reward [{self.Name}]'))
-
-
+        b = self.week_bins(d) if week else self.month_split(d) if month else None
+        return draw.sum_hist(x, y, b, **prep_kw(dkw, **self.x_args(week, month), y_tit=f'Reward [{self.Name}]'))
