@@ -1,14 +1,45 @@
 from plotting.save import SaveDraw, prep_kw, Config, BaseDir
 from src.data import Data, pd
-from
+from alpaca.data.requests import CryptoLatestQuoteRequest
+from alpaca.data.historical import CryptoHistoricalDataClient
+from alpaca.data.live import CryptoDataStream
+from forex_python.converter import CurrencyRates
 
 draw = SaveDraw()
 
 
+async def quote_data_handler(data):
+    print(data)
+
+
 class Alpaca:
+
+    Symbols = ['ETH/USD', 'DOT/USD']
+    Rates = CurrencyRates()
+
     def __init__(self):
         self.Config = Config(BaseDir.joinpath('config', 'alpaca.ini'), section='main')
-        self.Stream = CryptoDataStream("api-key", "secret-key")
+        self.Data = CryptoHistoricalDataClient(self.Config.get_value('k'), self.Config.get_value('s'))
+        self.R = CryptoLatestQuoteRequest(symbol_or_symbols=Alpaca.Symbols)
+
+    @property
+    def exchange_rate(self):
+        return Alpaca.Rates.get_rate('USD', 'CHF')
+
+    @property
+    def data(self):
+        return self.Data.get_crypto_latest_quote(self.R)
+
+    def ask_price(self, currency='ETH'):
+        return self.data[f'{currency}/USD'].ask_price * self.exchange_rate
+
+    def bid_price(self, currency='ETH'):
+        return self.data[f'{currency}/USD'].bid_price * self.exchange_rate
+
+    def prep_stream(self):
+        s = CryptoDataStream(self.Config.get_value('k'), self.Config.get_value('s'))
+        s.subscribe_quotes(quote_data_handler, *Alpaca.Symbols)
+        return s
 
 
 class Crypto(Data):
