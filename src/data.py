@@ -4,9 +4,7 @@ import pyarrow.feather as feather
 import plotting.binning as bins
 from dateutil.relativedelta import relativedelta
 
-from plotting.save import SaveDraw, BaseDir, info, choose, prep_kw
-
-draw = SaveDraw()
+from plotting.utils import BaseDir, info, choose
 
 
 class Data:
@@ -73,34 +71,5 @@ class Data:
     @staticmethod
     def x_args(week=False, month=False):
         return {'x_tit': 'Month' if month else 'Calendar Week' if week else 'Time [dd:mm]', 't_ax_off': 0, 'tform': '%W' if week else '%b %y' if month else '%d/%m',
-                'grid': True, 'bar_w': .7, 'bar_off': .07, 'draw_opt': 'bar1', 'fill_color': 30}
+                'grid': True, 'bar_w': .7, 'bar_off': .07, 'draw_opt': 'bar1' if month or week else 'apl', 'fill_color': 30}
 
-
-class Crypto(Data):
-
-    def __init__(self, name):
-        self.Name = name
-        super().__init__()
-
-    def __getitem__(self, item):
-        return self.D[self.D['Description'] == item]
-
-    def load(self) -> pd.DataFrame:
-        d = super().load()
-        return d[d['Currency'] == self.Name]
-
-    # region Types
-    @property
-    def rewards(self) -> pd.DataFrame:
-        return self['Rewards paid']
-
-    @property
-    def transfers(self) -> pd.DataFrame:
-        return self[f'Staking for currency {self.Name}']
-    # endregion
-
-    def plot_rewards(self, week=False, month=False, **dkw):
-        d = self.rewards
-        x, y = self.time(d), self.amount(d)
-        b = self.week_bins(d) if week else self.month_bins(d) if month else None
-        return draw.sum_hist(x, y, b, **prep_kw(dkw, **self.x_args(week, month), y_tit=f'Reward [{self.Name}]'))

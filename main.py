@@ -1,9 +1,10 @@
-from src.data import *
+from src.crypto import *
 
 
 if __name__ == '__main__':
 
-    eth = Crypto('ETH')
-    dot = Crypto('DOT')
+    a = Alpaca()
+    # eth = Crypto('ETH')
+    # dot = Crypto('DOT')
 
 
