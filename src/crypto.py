@@ -14,13 +14,11 @@ async def quote_data_handler(data):
 
 class Alpaca:
 
+    Config = Config(BaseDir.joinpath('config', 'alpaca.ini'), section='main')
     Symbols = ['ETH/USD', 'DOT/USD']
     Rates = CurrencyRates()
-
-    def __init__(self):
-        self.Config = Config(BaseDir.joinpath('config', 'alpaca.ini'), section='main')
-        self.Data = CryptoHistoricalDataClient(self.Config.get_value('k'), self.Config.get_value('s'))
-        self.R = CryptoLatestQuoteRequest(symbol_or_symbols=Alpaca.Symbols)
+    Data = CryptoHistoricalDataClient(Config.get_value('k'), Config.get_value('s'))
+    R = CryptoLatestQuoteRequest(symbol_or_symbols=Symbols)
 
     @property
     def exchange_rate(self):
@@ -42,6 +40,9 @@ class Alpaca:
         return s
 
 
+alpaca = Alpaca()
+
+
 class Crypto(Data):
 
     def __init__(self, name):
@@ -55,6 +56,10 @@ class Crypto(Data):
         d = super().load()
         return d[d['Currency'] == self.Name]
 
+    @property
+    def rate(self):
+        return alpaca.ask_price(self.Name)
+
     # region Types
     @property
     def rewards(self) -> pd.DataFrame:
@@ -67,9 +72,8 @@ class Crypto(Data):
 
     def plot_rewards(self, week=False, month=False, **dkw):
         d = self.rewards
-        x, y = self.time(d), self.amount(d)
+        x, y = self.time(d), self.amount(d) * self.rate
         if week or month:
             b = self.week_bins(d) if week else self.month_bins(d) if month else None
-            return draw.sum_hist(x, y, b, **prep_kw(dkw, **self.x_args(week, month), y_tit=f'Reward [{self.Name}]'))
-        return draw.graph(x, y, **prep_kw(dkw, **self.x_args(), markersize=.7, y_tit=f'Reward [{self.Name}]'))
-
+            return draw.sum_hist(x, y, b, **prep_kw(dkw, **self.x_args(week, month), y_tit=f'Reward [CHF]'))
+        return draw.graph(x, y, **prep_kw(dkw, **self.x_args(), markersize=.7, y_tit=f'Reward [CHF]'))
