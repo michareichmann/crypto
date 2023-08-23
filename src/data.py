@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pyarrow.feather as feather
 import plotting.binning as bins
+from dateutil.relativedelta import relativedelta
 
 from plotting.save import SaveDraw, BaseDir, info, choose, prep_kw
 
@@ -64,14 +65,14 @@ class Data:
         ts0 = dt0.replace(hour=0, minute=0, second=0).timestamp() - dt0.dayofweek * 24 * 3600  # go to first day of the week
         return bins.make(ts0, w=7 * 24 * 3600, nb=(dt1 - dt0).days // 7 + 1)
 
-    def month_split(self, d=None):
-        # TODO: finish
-        m = choose(d, self.D)[Data.TimeKey].dt.month.to_numpy()
-        return np.where(np.diff(m))[0] + 1
+    def month_bins(self, d=None):
+        dt0, dt1 = choose(d, self.D)[Data.TimeKey].iloc[[0, -1]]  # get first and last time
+        n_month = (dt1.year - dt0.year) * 12 + dt1.month - dt0.month
+        return bins.from_vec([(dt0.replace(hour=0, minute=0, second=0, day=1) + relativedelta(months=i)).timestamp() for i in range(n_month + 2)])
 
     @staticmethod
     def x_args(week=False, month=False):
-        return {'x_tit': 'Calendar Week' if week else 'Time [dd:mm]', 't_ax_off': 0, 'tform': '%W' if week else '%b %y' if month else '%d/%m',
+        return {'x_tit': 'Month' if month else 'Calendar Week' if week else 'Time [dd:mm]', 't_ax_off': 0, 'tform': '%W' if week else '%b %y' if month else '%d/%m',
                 'grid': True, 'bar_w': .7, 'bar_off': .07, 'draw_opt': 'bar1', 'fill_color': 30}
 
 
@@ -101,5 +102,5 @@ class Crypto(Data):
     def plot_rewards(self, week=False, month=False, **dkw):
         d = self.rewards
         x, y = self.time(d), self.amount(d)
-        b = self.week_bins(d) if week else self.month_split(d) if month else None
+        b = self.week_bins(d) if week else self.month_bins(d) if month else None
         return draw.sum_hist(x, y, b, **prep_kw(dkw, **self.x_args(week, month), y_tit=f'Reward [{self.Name}]'))
