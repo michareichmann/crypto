@@ -28,7 +28,8 @@ class Data:
 
     @property
     def new_files(self):
-        """check if there is new data"""
+        """check if there is new data
+           :returns: all csv files with a new timestamp than the feather data file. """
         csv = dict(sorted({i.stat().st_ctime: i for i in Data.Dir.glob('*.csv')}.items()))
         if not self.FilePath.exists():
             return list(csv.values())
@@ -72,4 +73,3 @@ class Data:
     def x_args(week=False, month=False):
         return {'x_tit': 'Month' if month else 'Calendar Week' if week else 'Time [dd:mm]', 't_ax_off': 0, 'tform': '%W' if week else '%b %y' if month else '%d/%m',
                 'grid': True, 'bar_w': .7, 'bar_off': .07, 'draw_opt': 'bar1' if month or week else 'apl', 'fill_color': 30}
-
