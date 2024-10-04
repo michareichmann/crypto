@@ -3,9 +3,8 @@ import sqlite3
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 
-# TODO: make module...
-from plotting.utils import *
-import plotting.binning as bins
+from rootplots.utils import *
+from rootplots import bins
 
 
 class Data(pd.DataFrame):
