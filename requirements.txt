@@ -10,3 +10,5 @@ cryptography
 screeninfo
 pytz
 uncertainties
+rootplots
+colorama
