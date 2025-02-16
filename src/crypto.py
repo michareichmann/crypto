@@ -1,13 +1,11 @@
+import plotly.express as px
 import requests
 from alpaca.data.historical import CryptoHistoricalDataClient
 from alpaca.data.live import CryptoDataStream
 from alpaca.data.requests import CryptoLatestQuoteRequest
 from cryptography.fernet import Fernet
 
-from rootplots.save import prep_kw, SaveDraw
-from src.data import Data, pd, Path
-
-draw = SaveDraw()
+from src.data import Data, pd, Path, week_bins, month_bins
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONF_DIR = BASE_DIR.joinpath('config')
@@ -18,7 +16,7 @@ async def quote_data_handler(data):
 
 
 def create_key(force=False):
-    f = Data.Dir.joinpath('secret.key')
+    f = Data.DIR.joinpath('secret.key')
     if not f.exists() or force:
         with open(f, 'wb') as key_file:
             key_file.write(Fernet.generate_key())
@@ -74,58 +72,58 @@ class Alpaca:
         return s
 
 
-alpaca = Alpaca()
-
-
 class Crypto(Data):
 
     NAME = None
 
-    def __init__(self, name):
-        self.NAME = name
-        super().__init__()
+    def __new__(cls, *args, **kwargs):
+        cls.NAME = cls.__name__
+        return super().__new__(cls)
 
-    # def __getitem__(self, item):
-    #     return self.D[self.D['Description'] == item]
-
-    def load(self) -> pd.DataFrame:
-        d = super().load()
-        return d[d[Data.SYMBOL_KEY] == self.NAME].drop(columns=Data.SYMBOL_KEY).reset_index(drop=True)
+    def read(self, _=None):
+        return super().read(symbol=self.NAME).drop(columns=Data.SYMBOL_COL)
 
     @property
     def rate(self):
-        return alpaca.ask_price(self.NAME)
+        return Alpaca.ask_price(self.NAME)
 
     # region Types
     @property
-    def rewards(self) -> pd.DataFrame:
-        return self[self.Type == 'Staking reward']
+    def reward_cut(self):
+        return self.Type == 'Staking reward'
+
+    @property
+    def staking_cut(self):
+        return self.Type.isin(['Stake', 'Unstake'])
 
     @property
     def total_rewards(self) -> float:
-        return (self.amount(self.rewards).sum()) * self.rate
-
-    @property
-    def transfers(self) -> pd.DataFrame:
-        return self[self.Description == f'Staking for currency {self.NAME}']
-
-    @property
-    def balance_(self) -> pd.DataFrame:
-        return self[self.Type == 'REWARD']
+        return self.Quantity[self.reward_cut].sum()
     # endregion
 
-    def plot_rewards(self, week=False, month=False, **dkw):
-        d = self.rewards
-        x, y = self.time(d), self.amount(d) * self.rate
-        if week or month:
-            b = self.week_bins(d) if week else self.month_bins(d) if month else None
-            return draw.sum_hist(x, y, b, **prep_kw(dkw, **self.x_args(week, month), y_tit=f'Reward [CHF]'))
-        return draw.graph(x, y, **prep_kw(dkw, **self.x_args(), markersize=.7, y_tit=f'Reward [CHF]'))
+    def plot_balance(self, w=False, m=False):
+        cut = ~self.staking_cut
+        return self.plot_vs_t(self.Q_NET[cut].cumsum(), cut, f'Balance [{self.NAME}]', 'Balance', w, m)
 
-    def plot_balance(self, week=False, month=False, **dkw):
-        d = self.balance_
-        x, y = self.time(d), self.balance(d)
-        if week or month:
-            b = self.week_bins(d) if week else self.month_bins(d) if month else None
-            return draw.profile(x, y, b, **prep_kw(dkw, **self.x_args(week, month, 1), graph=True, y_tit=f'Balance [{self.NAME}]'))
-        return draw.graph(x, y, **prep_kw(dkw, **self.x_args(), markersize=.7, y_tit=f'Balance [{self.NAME}]'))
+    def plot_rewards(self, w=False, m=False):
+        return self.plot_vs_t(self.Quantity, self.reward_cut, f'Rewards [{self.NAME}]', 'Staking Rewards', w, m, f='sum')
+
+    def plot_vs_t(self, y, cut=..., y_tit='y', title='', weekly=False, monthly=False, f='mean'):
+        t = self.Date[cut]
+        df = pd.DataFrame({'Time': t, y_tit: y[cut]})
+        if monthly or weekly:
+            df['bin'] = pd.cut(t, week_bins(t) if weekly else month_bins(t), labels=False)
+            df = df.groupby('bin').agg({'Time': 'mean', y_tit: f}).dropna()
+        return px.line(df, x='Time', y=y_tit, markers=True, title=title)
+
+
+class BTC(Crypto):
+    UPDATE_FREQUENCY = 14
+
+
+class DOT(Crypto):
+    pass
+
+
+class ETH(Crypto):
+    pass
