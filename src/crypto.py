@@ -49,21 +49,23 @@ class Alpaca:
     DATA = CryptoHistoricalDataClient(KEY, read_pw(SECRET_FILE))
     R = CryptoLatestQuoteRequest(symbol_or_symbols=SYMBOLS)
 
-    @property
-    def exchange_rate(self, base_cur='CHF', dest_cur='USD'):
+    @staticmethod
+    def exchange_rate(base_cur='PLN', dest_cur='USD'):
         url = f'https://v6.exchangerate-api.com/v6/{read_pw(Alpaca.EX_RATE_API_FILE)}/latest/{base_cur}'
         data = requests.get(url).json()
         return data['conversion_rates'][dest_cur]
 
-    @property
-    def data(self):
-        return self.DATA.get_crypto_latest_quote(self.R)
+    @staticmethod
+    def get_quote():
+        return Alpaca.DATA.get_crypto_latest_quote(Alpaca.R)
 
-    def ask_price(self, currency='ETH'):
-        return self.data[f'{currency}/USD'].ask_price * self.exchange_rate
+    @staticmethod
+    def ask_price(symbol='ETH'):
+        return Alpaca.get_quote()[f'{symbol}/USD'].ask_price / Alpaca.exchange_rate()
 
-    def bid_price(self, currency='ETH'):
-        return self.data[f'{currency}/USD'].bid_price * self.exchange_rate
+    @staticmethod
+    def bid_price(symbol='ETH'):
+        return Alpaca.get_quote()[f'{symbol}/USD'].bid_price / Alpaca.exchange_rate()
 
     @staticmethod
     def prep_stream():
