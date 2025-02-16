@@ -1,14 +1,6 @@
-ipython
 numpy
-scipy
 pandas
-pyarrow
-alpaca-py
-python-dateutil
 requests
 cryptography
-screeninfo
-pytz
-uncertainties
-rootplots
 colorama
+plotly
