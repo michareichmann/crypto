@@ -96,16 +96,17 @@ class Data(pd.DataFrame):
         be negated. If not the whole portfolio is sold (or only if currency is bought?) the fees must be deducted as well. These transactions must be flagged
         manually by SELL_ID_TO_FIX.
         """
-        df['Q_NET'] = -df.Quantity
+        df['Q_NET'] = df.Quantity
         fees = (df.Fees / df.Value).round(3) * df.Value  # input fees are wrong
         df.loc[df.Type == 'Buy', 'Q_NET'] = df.Quantity - fees / df.Price
+        df.loc[df.Type == 'Sell', 'Q_NET'] *= -1
         df.loc[df.index.isin(df.index[Data.IDS_TO_FIX - 1 - offset]), 'Q_NET'] = - df.Quantity - fees / df.Price
         return df
 
     def update_db(self):
         """add the new data from the csv files to the DB"""
         df_new = self.read_files()
-        df_old = self.read()
+        df_old = self.read_all()
         df = df_new.merge(df_old, on=list(df_new.columns), how='left', indicator=True)  # merge to find existing entries
         df = df[df['_merge'] != 'both'].drop(columns=['_merge'])  # take only new entries
         df = Data.calc_net_quantity(df, offset=len(df_old))
